@@ -1,5 +1,7 @@
 import random
 import string
+import mysql.connector
+from mysql.connector import Error
 
 def generate_password(length=12, use_upper=True, use_lower=True, use_digits=True, use_special=True):
     # Create a pool of characters based on user preferences
@@ -37,10 +39,25 @@ def generate_password(length=12, use_upper=True, use_lower=True, use_digits=True
     
     return ''.join(password)
 
-def save_password(password, filename='passwords.txt'):
-    with open(filename, 'a') as file:
-        file.write(password + '\n')
-    print(f"Password saved to {filename}")
+def save_password_to_db(password, cursor):
+    try:
+        cursor.execute("INSERT INTO passwords (password) VALUES (%s)", (password,))
+        print("Password saved to database.")
+    except Error as e:
+        print(f"Error occurred: {e}")
+
+def connect_to_database():
+    try:
+        connection = mysql.connector.connect(
+            host='localhost',  # Change if your DB is hosted elsewhere
+            database='your_database_name',  # Replace with your database name
+            user='your_username',  # Replace with your MySQL username
+            password='your_password'  # Replace with your MySQL password
+        )
+        return connection
+    except Error as e:
+        print(f"Error connecting to MySQL: {e}")
+        return None
 
 # Example usage
 if __name__ == "__main__":
@@ -52,12 +69,24 @@ if __name__ == "__main__":
     use_digits = input("Include digits? (y/n): ").lower() == 'y'
     use_special = input("Include special characters? (y/n): ").lower() == 'y'
 
-    for _ in range(num_passwords):
-        password = generate_password(length=password_length, use_upper=use_upper, 
-                                      use_lower=use_lower, use_digits=use_digits, 
-                                      use_special=use_special)
-        print(f"Generated Password: {password}")
-        
-        save_option = input("Would you like to save this password? (y/n): ").lower()
-        if save_option == 'y':
-            save_password(password)
+    # Connect to the database
+    connection = connect_to_database()
+    if connection is not None:
+        cursor = connection.cursor()
+
+        for _ in range(num_passwords):
+            password = generate_password(length=password_length, use_upper=use_upper, 
+                                          use_lower=use_lower, use_digits=use_digits, 
+                                          use_special=use_special)
+            print(f"Generated Password: {password}")
+            
+            save_option = input("Would you like to save this password to the database? (y/n): ").lower()
+            if save_option == 'y':
+                save_password_to_db(password, cursor)
+
+        # Commit the transaction
+        connection.commit()
+        cursor.close()
+        connection.close()
+    else:
+        print("Failed to connect to the database.")
